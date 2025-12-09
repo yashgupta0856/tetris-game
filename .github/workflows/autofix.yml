@@ -1,0 +1,80 @@
+name: Auto-Fix Code Quality
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-fix:
+    name: Auto-fix code quality issues
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout PR branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black isort flake8 pylint
+        pip install -r requirements.txt
+
+    - name: Run auto-fix script
+      id: autofix
+      run: |
+        python scripts/lint_fix.py --verbose
+        echo "exit_code=$?" >> $GITHUB_OUTPUT
+      continue-on-error: true
+
+    - name: Check for changes
+      id: verify_diff
+      run: |
+        git diff --quiet . || echo "changed=true" >> $GITHUB_OUTPUT
+
+    - name: Commit and push auto-fixes
+      if: steps.verify_diff.outputs.changed == 'true'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add -A
+        git commit -m "🤖 Auto-fix: Apply code quality fixes [skip ci]"
+        git push
+
+    - name: Comment on PR
+      if: steps.verify_diff.outputs.changed == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🤖 **Auto-fix applied**\n\nCode formatting and import sorting issues have been automatically fixed. Please pull the latest changes before continuing.'
+          })
+
+    - name: Report no changes needed
+      if: steps.verify_diff.outputs.changed != 'true'
+      run: |
+        echo "✓ No auto-fixable issues found. Code is clean!"
+
+    - name: Fail if manual fixes needed
+      if: steps.autofix.outputs.exit_code != '0' && steps.verify_diff.outputs.changed != 'true'
+      run: |
+        echo "✗ Some issues require manual intervention."
+        echo "Please review the logs above and fix the issues."
+        exit 1

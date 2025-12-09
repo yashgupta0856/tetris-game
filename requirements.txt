@@ -1,1 +1,5 @@
 pygame>=2.6.0
+
+# Development dependencies (optional, for contributors)
+# Install with: pip install -r requirements.txt black isort flake8 pylint pytest pytest-cov pre-commit
+# Or use: pip install black isort flake8 pylint pytest pytest-cov pre-commit

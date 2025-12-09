@@ -1,0 +1,87 @@
+# Pre-commit hooks for code quality
+# See https://pre-commit.com for more information
+# Install: pip install pre-commit
+# Setup: pre-commit install
+
+repos:
+  # Black - Python code formatter
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        name: Format code with Black
+        language_version: python3
+        args: [--line-length=100]
+
+  # isort - Import sorter
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Sort imports with isort
+        args: [--profile=black, --line-length=100]
+
+  # Flake8 - Style guide enforcement
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        name: Lint with Flake8
+        args: [--max-line-length=100, --extend-ignore=E203,W503]
+        additional_dependencies: [flake8-docstrings]
+
+  # Pylint - Code analyzer
+  - repo: https://github.com/pycqa/pylint
+    rev: v3.2.7
+    hooks:
+      - id: pylint
+        name: Lint with Pylint
+        args: [--rcfile=.pylintrc]
+        additional_dependencies: [pygame]
+
+  # Built-in hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of files
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-added-large-files
+        name: Check for large files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-toml
+        name: Check TOML syntax
+      - id: debug-statements
+        name: Check for debugger imports
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+        args: [--fix=lf]
+
+  # Prettier - For markdown, YAML, JSON
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: Format with Prettier
+        types_or: [markdown, yaml, json]
+
+# Run these hooks on every commit
+default_install_hook_types: [pre-commit, pre-push]
+
+# Configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

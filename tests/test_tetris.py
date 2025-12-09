@@ -2,20 +2,21 @@
 Test suite for Tetris Ultimate Edition
 """
 
-import pytest
 import pygame
+import pytest
+
 from tetris import (
-    Tetromino,
-    TetrisGame,
-    GameConfig,
-    SHAPES,
     COLORS,
-    GRID_WIDTH,
     GRID_HEIGHT,
-    PlayingState,
-    PausedState,
-    LineClearingState,
+    GRID_WIDTH,
+    SHAPES,
+    GameConfig,
     GameOverState,
+    LineClearingState,
+    PausedState,
+    PlayingState,
+    TetrisGame,
+    Tetromino,
 )
 
 

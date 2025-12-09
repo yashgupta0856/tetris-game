@@ -4,7 +4,7 @@ Features: Ghost piece, hold piece, next piece preview, scoring, levels
 """
 
 import random
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import pygame
 
@@ -167,9 +167,7 @@ class PausedState(GameState):
         game.screen.blit(overlay, (0, 0))
 
         pause_text = game.font.render("PAUSED", True, game.config.WHITE)
-        continue_text = game.small_font.render(
-            "Press P to Continue", True, game.config.WHITE
-        )
+        continue_text = game.small_font.render("Press P to Continue", True, game.config.WHITE)
 
         game.screen.blit(
             pause_text,
@@ -218,12 +216,8 @@ class GameOverState(GameState):
         game.screen.blit(overlay, (0, 0))
 
         game_over_text = game.font.render("GAME OVER", True, game.config.RED)
-        score_text = game.font.render(
-            f"Final Score: {game.score}", True, game.config.WHITE
-        )
-        restart_text = game.small_font.render(
-            "Press R to Restart", True, game.config.WHITE
-        )
+        score_text = game.font.render(f"Final Score: {game.score}", True, game.config.WHITE)
+        restart_text = game.small_font.render("Press R to Restart", True, game.config.WHITE)
 
         game.screen.blit(
             game_over_text,
@@ -304,9 +298,7 @@ class TetrisGame:
             config = GameConfig
         self.config = config
 
-        self.screen = pygame.display.set_mode(
-            (self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT)
-        )
+        self.screen = pygame.display.set_mode((self.config.SCREEN_WIDTH, self.config.SCREEN_HEIGHT))
         pygame.display.set_caption("Tetris - Ultimate Edition")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
@@ -314,8 +306,7 @@ class TetrisGame:
 
         # Game state
         self.grid = [
-            [None for _ in range(self.config.GRID_WIDTH)]
-            for _ in range(self.config.GRID_HEIGHT)
+            [None for _ in range(self.config.GRID_WIDTH)] for _ in range(self.config.GRID_HEIGHT)
         ]
         self.current_piece: Optional[Tetromino] = None
         self.next_piece: Optional[Tetromino] = None
@@ -367,11 +358,7 @@ class TetrisGame:
             new_y = y + offset_y
 
             # Check boundaries
-            if (
-                new_x < 0
-                or new_x >= self.config.GRID_WIDTH
-                or new_y >= self.config.GRID_HEIGHT
-            ):
+            if new_x < 0 or new_x >= self.config.GRID_WIDTH or new_y >= self.config.GRID_HEIGHT:
                 return False
 
             # Check collision with placed blocks
@@ -507,8 +494,7 @@ class TetrisGame:
                 (self.config.GRID_X + x * self.config.BLOCK_SIZE, self.config.GRID_Y),
                 (
                     self.config.GRID_X + x * self.config.BLOCK_SIZE,
-                    self.config.GRID_Y
-                    + self.config.GRID_HEIGHT * self.config.BLOCK_SIZE,
+                    self.config.GRID_Y + self.config.GRID_HEIGHT * self.config.BLOCK_SIZE,
                 ),
             )
 
@@ -518,8 +504,7 @@ class TetrisGame:
                 self.config.GRAY,
                 (self.config.GRID_X, self.config.GRID_Y + y * self.config.BLOCK_SIZE),
                 (
-                    self.config.GRID_X
-                    + self.config.GRID_WIDTH * self.config.BLOCK_SIZE,
+                    self.config.GRID_X + self.config.GRID_WIDTH * self.config.BLOCK_SIZE,
                     self.config.GRID_Y + y * self.config.BLOCK_SIZE,
                 ),
             )
@@ -544,9 +529,7 @@ class TetrisGame:
                         self.config.BLOCK_SIZE - 2,
                     )
                     # Create a surface with alpha for fade effect
-                    surf = pygame.Surface(
-                        (self.config.BLOCK_SIZE - 2, self.config.BLOCK_SIZE - 2)
-                    )
+                    surf = pygame.Surface((self.config.BLOCK_SIZE - 2, self.config.BLOCK_SIZE - 2))
                     surf.set_alpha(alpha)
                     surf.fill(self.config.WHITE)
                     self.screen.blit(surf, (rect.x, rect.y))
@@ -582,12 +565,8 @@ class TetrisGame:
 
         # Add highlight for 3D effect
         highlight = tuple(min(c + 40, 255) for c in color)
-        pygame.draw.line(
-            self.screen, highlight, (rect.left, rect.top), (rect.right, rect.top), 2
-        )
-        pygame.draw.line(
-            self.screen, highlight, (rect.left, rect.top), (rect.left, rect.bottom), 2
-        )
+        pygame.draw.line(self.screen, highlight, (rect.left, rect.top), (rect.right, rect.top), 2)
+        pygame.draw.line(self.screen, highlight, (rect.left, rect.top), (rect.left, rect.bottom), 2)
 
     def draw_piece_preview(self, piece: Tetromino, x: int, y: int, title: str):
         """Draw a piece preview box"""
@@ -627,9 +606,7 @@ class TetrisGame:
         self.screen.blit(level_text, (50, 150))
 
         # Lines
-        lines_text = self.font.render(
-            f"Lines: {self.lines_cleared}", True, self.config.WHITE
-        )
+        lines_text = self.font.render(f"Lines: {self.lines_cleared}", True, self.config.WHITE)
         self.screen.blit(lines_text, (50, 200))
 
         # Next piece
@@ -658,8 +635,7 @@ class TetrisGame:
     def reset_game(self):
         """Reset the game to initial state"""
         self.grid = [
-            [None for _ in range(self.config.GRID_WIDTH)]
-            for _ in range(self.config.GRID_HEIGHT)
+            [None for _ in range(self.config.GRID_WIDTH)] for _ in range(self.config.GRID_HEIGHT)
         ]
         self.score = 0
         self.level = 1
