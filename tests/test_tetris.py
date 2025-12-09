@@ -7,6 +7,7 @@ import pygame
 from tetris import (
     Tetromino,
     TetrisGame,
+    GameConfig,
     SHAPES,
     COLORS,
     GRID_WIDTH,
