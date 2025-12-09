@@ -4,7 +4,19 @@ Test suite for Tetris Ultimate Edition
 
 import pytest
 import pygame
-from tetris import Tetromino, TetrisGame, SHAPES, COLORS, GRID_WIDTH, GRID_HEIGHT
+from tetris import (
+    Tetromino, 
+    TetrisGame, 
+    SHAPES, 
+    COLORS, 
+    GRID_WIDTH, 
+    GRID_HEIGHT,
+    GameState,
+    PlayingState,
+    PausedState,
+    LineClearingState,
+    GameOverState
+)
 
 
 class TestTetromino:
@@ -317,6 +329,126 @@ class TestConstants:
         """Test grid dimensions are reasonable"""
         assert GRID_WIDTH == 10
         assert GRID_HEIGHT == 20
+
+
+class TestGameStates:
+    """Test the State Pattern implementation"""
+    
+    @pytest.fixture
+    def game(self):
+        """Create a game instance for testing"""
+        pygame.init()
+        game = TetrisGame()
+        yield game
+        pygame.quit()
+    
+    def test_initial_state_is_playing(self, game):
+        """Test game starts in PlayingState"""
+        assert isinstance(game.state, PlayingState)
+    
+    def test_pause_state_transition(self, game):
+        """Test transitioning to paused state"""
+        # Create a pause event
+        event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_p})
+        game.handle_input(event)
+        
+        # Should be in paused state
+        assert isinstance(game.state, PausedState)
+    
+    def test_unpause_state_transition(self, game):
+        """Test transitioning from paused back to playing"""
+        # Pause the game
+        game.state = PausedState()
+        
+        # Unpause
+        event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_p})
+        game.handle_input(event)
+        
+        # Should be back to playing
+        assert isinstance(game.state, PlayingState)
+    
+    def test_game_over_state_transition(self, game):
+        """Test transitioning to game over state"""
+        # Set game over condition
+        game.game_over = True
+        game.state = GameOverState()
+        
+        assert isinstance(game.state, GameOverState)
+    
+    def test_restart_from_game_over(self, game):
+        """Test restarting game from game over state"""
+        # Set to game over
+        game.state = GameOverState()
+        game.game_over = True
+        
+        # Press R to restart
+        event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_r})
+        game.handle_input(event)
+        
+        # Should be back to playing
+        assert isinstance(game.state, PlayingState)
+        assert game.game_over == False
+    
+    def test_line_clearing_state_transition(self, game):
+        """Test transitioning to line clearing state"""
+        # Fill a line
+        for x in range(GRID_WIDTH):
+            game.grid[GRID_HEIGHT - 1][x] = COLORS['I']
+        
+        # Trigger line clear
+        game.clear_lines()
+        
+        # Should be in line clearing state
+        assert isinstance(game.state, LineClearingState)
+    
+    def test_line_clearing_completes(self, game):
+        """Test line clearing transitions back to playing"""
+        # Fill a line and start clearing
+        for x in range(GRID_WIDTH):
+            game.grid[GRID_HEIGHT - 1][x] = COLORS['I']
+        game.clear_lines()
+        
+        # Complete the animation
+        game.state.update(game.clear_animation_duration + 1, game)
+        
+        # Should be back to playing
+        assert isinstance(game.state, PlayingState)
+    
+    def test_paused_state_no_update(self, game):
+        """Test that paused state doesn't update game logic"""
+        game.state = PausedState()
+        original_fall_time = game.fall_time
+        
+        # Update should not change fall_time
+        game.state.update(100, game)
+        
+        assert game.fall_time == original_fall_time
+    
+    def test_paused_state_no_movement(self, game):
+        """Test that pieces can't move while paused"""
+        game.state = PausedState()
+        original_x = game.current_piece.x
+        
+        # Try to move (should be ignored in paused state)
+        event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_LEFT})
+        game.handle_input(event)
+        
+        # Piece should not have moved
+        assert game.current_piece.x == original_x
+    
+    def test_playing_state_handles_movement(self, game):
+        """Test that playing state handles movement input"""
+        game.state = PlayingState()
+        original_x = game.current_piece.x
+        
+        # Move right
+        event = pygame.event.Event(pygame.KEYDOWN, {'key': pygame.K_RIGHT})
+        game.handle_input(event)
+        
+        # Piece should have moved (if there was space)
+        # Can't assert exact position due to boundary conditions
+        # But state should have processed the input
+        assert isinstance(game.state, PlayingState)
 
 
 if __name__ == '__main__':

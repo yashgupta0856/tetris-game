@@ -55,6 +55,135 @@ COLORS = {
 }
 
 
+class GameState:
+    """Base class for game states"""
+
+    def handle_input(self, event, game):
+        """Handle input events for this state"""
+
+    def update(self, delta_time, game):
+        """Update game logic for this state"""
+
+    def draw(self, game):
+        """Draw additional state-specific elements"""
+
+
+class PlayingState(GameState):
+    """Active gameplay state"""
+
+    def handle_input(self, event, game):
+        """Handle input during active gameplay"""
+        if event.key == pygame.K_LEFT:
+            game.move_piece(-1, 0)
+        elif event.key == pygame.K_RIGHT:
+            game.move_piece(1, 0)
+        elif event.key == pygame.K_DOWN:
+            if game.move_piece(0, 1):
+                game.score += 1  # Bonus for soft drop
+        elif event.key == pygame.K_UP:
+            game.rotate_piece()
+        elif event.key == pygame.K_SPACE:
+            game.hard_drop()
+        elif event.key == pygame.K_c:
+            game.hold_current_piece()
+        elif event.key == pygame.K_g:
+            game.show_ghost = not game.show_ghost
+        elif event.key == pygame.K_p:
+            game.state = PausedState()
+
+    def update(self, delta_time, game):
+        """Update active gameplay"""
+        # Auto-fall
+        game.fall_time += delta_time
+        if game.fall_time >= game.fall_speed:
+            game.fall_time = 0
+            if not game.move_piece(0, 1):
+                game.lock_piece()
+
+    def draw(self, game):
+        """No additional drawing needed for playing state"""
+
+
+class PausedState(GameState):
+    """Game paused state"""
+
+    def handle_input(self, event, game):
+        """Handle input while paused"""
+        if event.key == pygame.K_p:
+            game.state = PlayingState()
+
+    def update(self, delta_time, game):
+        """No updates while paused"""
+
+    def draw(self, game):
+        """Draw pause overlay"""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(180)
+        overlay.fill(BLACK)
+        game.screen.blit(overlay, (0, 0))
+
+        pause_text = game.font.render("PAUSED", True, WHITE)
+        continue_text = game.small_font.render("Press P to Continue", True, WHITE)
+
+        game.screen.blit(
+            pause_text, (SCREEN_WIDTH // 2 - pause_text.get_width() // 2, 250)
+        )
+        game.screen.blit(
+            continue_text, (SCREEN_WIDTH // 2 - continue_text.get_width() // 2, 320)
+        )
+
+
+class LineClearingState(GameState):
+    """Line clearing animation state"""
+
+    def handle_input(self, event, game):
+        """No input handling during line clearing"""
+
+    def update(self, delta_time, game):
+        """Update line clearing animation"""
+        game.clear_animation_time += delta_time
+        if game.clear_animation_time >= game.clear_animation_duration:
+            game.finish_clearing_animation()
+            game.state = PlayingState()
+
+    def draw(self, game):
+        """No additional drawing needed - animation handled in draw_grid"""
+
+
+class GameOverState(GameState):
+    """Game over state"""
+
+    def handle_input(self, event, game):
+        """Handle input in game over state"""
+        if event.key == pygame.K_r:
+            game.reset_game()
+            game.state = PlayingState()
+
+    def update(self, delta_time, game):
+        """No updates in game over state"""
+
+    def draw(self, game):
+        """Draw game over overlay"""
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        overlay.set_alpha(200)
+        overlay.fill(BLACK)
+        game.screen.blit(overlay, (0, 0))
+
+        game_over_text = game.font.render("GAME OVER", True, RED)
+        score_text = game.font.render(f"Final Score: {game.score}", True, WHITE)
+        restart_text = game.small_font.render("Press R to Restart", True, WHITE)
+
+        game.screen.blit(
+            game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 250)
+        )
+        game.screen.blit(
+            score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 320)
+        )
+        game.screen.blit(
+            restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, 400)
+        )
+
+
 class Tetromino:
     """Represents a Tetris piece"""
 
@@ -124,6 +253,9 @@ class TetrisGame:
         # Settings
         self.show_ghost = True
 
+        # State pattern
+        self.state: GameState = PlayingState()
+
         # Initialize first pieces
         self.next_piece = self.get_random_piece()
         self.spawn_new_piece()
@@ -141,6 +273,7 @@ class TetrisGame:
         # Check if game over
         if not self.is_valid_position(self.current_piece):
             self.game_over = True
+            self.state = GameOverState()
 
     def is_valid_position(self, piece: Tetromino, offset_x=0, offset_y=0) -> bool:
         """Check if a piece position is valid"""
@@ -205,7 +338,8 @@ class TetrisGame:
                 self.grid[y][x] = self.current_piece.color
 
         self.clear_lines()
-        self.spawn_new_piece()
+        if not self.clearing_lines:
+            self.spawn_new_piece()
 
     def clear_lines(self):
         """Clear completed lines and update score"""
@@ -234,6 +368,9 @@ class TetrisGame:
                 self.level = new_level
                 self.fall_speed = max(100, 1000 - (self.level - 1) * 100)
 
+            # Transition to line clearing state
+            self.state = LineClearingState()
+
     def finish_clearing_animation(self):
         """Complete the line clearing animation and remove lines"""
         if self.clearing_lines:
@@ -241,6 +378,7 @@ class TetrisGame:
                 del self.grid[y]
                 self.grid.insert(0, [None for _ in range(GRID_WIDTH)])
             self.clearing_lines = []
+            self.spawn_new_piece()
 
     def hold_current_piece(self):
         """Hold the current piece for later"""
@@ -401,6 +539,7 @@ class TetrisGame:
             "Up: Rotate",
             "SPACE: Hard Drop",
             "C: Hold",
+            "P: Pause",
             "G: Toggle Ghost",
             "ESC: Quit",
         ]
@@ -408,27 +547,6 @@ class TetrisGame:
         for i, control in enumerate(controls):
             control_text = self.small_font.render(control, True, WHITE)
             self.screen.blit(control_text, (50, 400 + i * 30))
-
-    def draw_game_over(self):
-        """Draw game over screen"""
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        overlay.set_alpha(200)
-        overlay.fill(BLACK)
-        self.screen.blit(overlay, (0, 0))
-
-        game_over_text = self.font.render("GAME OVER", True, RED)
-        score_text = self.font.render(f"Final Score: {self.score}", True, WHITE)
-        restart_text = self.small_font.render("Press R to Restart", True, WHITE)
-
-        self.screen.blit(
-            game_over_text, (SCREEN_WIDTH // 2 - game_over_text.get_width() // 2, 250)
-        )
-        self.screen.blit(
-            score_text, (SCREEN_WIDTH // 2 - score_text.get_width() // 2, 320)
-        )
-        self.screen.blit(
-            restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, 400)
-        )
 
     def reset_game(self):
         """Reset the game to initial state"""
@@ -443,50 +561,20 @@ class TetrisGame:
         self.next_piece = self.get_random_piece()
         self.hold_piece = None
         self.can_hold = True
+        self.state = PlayingState()
         self.spawn_new_piece()
 
     def handle_input(self, event):
         """Handle keyboard input"""
         if event.type == pygame.KEYDOWN:
-            if self.game_over:
-                if event.key == pygame.K_r:
-                    self.reset_game()
-                return
-
-            if event.key == pygame.K_LEFT:
-                self.move_piece(-1, 0)
-            elif event.key == pygame.K_RIGHT:
-                self.move_piece(1, 0)
-            elif event.key == pygame.K_DOWN:
-                if self.move_piece(0, 1):
-                    self.score += 1  # Bonus for soft drop
-            elif event.key == pygame.K_UP:
-                self.rotate_piece()
-            elif event.key == pygame.K_SPACE:
-                self.hard_drop()
-            elif event.key == pygame.K_c:
-                self.hold_current_piece()
-            elif event.key == pygame.K_g:
-                self.show_ghost = not self.show_ghost
+            self.state.handle_input(event, self)
 
     def update(self, delta_time):
         """Update game state"""
         if self.game_over:
             return
 
-        # Handle line clearing animation
-        if self.clearing_lines:
-            self.clear_animation_time += delta_time
-            if self.clear_animation_time >= self.clear_animation_duration:
-                self.finish_clearing_animation()
-            return  # Don't update game while animating
-
-        # Auto-fall
-        self.fall_time += delta_time
-        if self.fall_time >= self.fall_speed:
-            self.fall_time = 0
-            if not self.move_piece(0, 1):
-                self.lock_piece()
+        self.state.update(delta_time, self)
 
     def draw(self):
         """Draw everything"""
@@ -494,8 +582,8 @@ class TetrisGame:
         self.draw_grid()
         self.draw_ui()
 
-        if self.game_over:
-            self.draw_game_over()
+        # Delegate state-specific drawing to current state
+        self.state.draw(self)
 
         pygame.display.flip()
 
