@@ -16,7 +16,7 @@ def run_command(cmd, check=True):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=check, encoding="utf-8")
         return result.returncode == 0, result.stdout, result.stderr
-    except Exception as e:
+    except (FileNotFoundError, OSError, subprocess.SubprocessError) as e:
         return False, "", str(e)
 
 
@@ -28,7 +28,7 @@ def install_pre_commit():
 
     if not success:
         print("Installing pre-commit...")
-        success, stdout, stderr = run_command(
+        success, _, stderr = run_command(
             [sys.executable, "-m", "pip", "install", "pre-commit"], check=False
         )
         if success:

@@ -20,6 +20,8 @@ Exit Codes:
 """
 
 import argparse
+import glob
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -58,13 +60,12 @@ def print_step(step: str, status: str = "running") -> None:
         print(f"{Colors.FAIL}✗ {step}{Colors.ENDC}")
 
 
-def run_command(cmd: List[str], check: bool = True, verbose: bool = False) -> Tuple[int, str, str]:
+def run_command(cmd: List[str], verbose: bool = False) -> Tuple[int, str, str]:
     """
     Run a shell command and return the result
 
     Args:
         cmd: Command and arguments as list
-        check: Whether to raise on non-zero exit
         verbose: Whether to print command output
 
     Returns:
@@ -83,7 +84,7 @@ def run_command(cmd: List[str], check: bool = True, verbose: bool = False) -> Tu
 
     except FileNotFoundError:
         return 1, "", f"Command not found: {cmd[0]}"
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         return 1, "", str(e)
 
 
@@ -96,7 +97,7 @@ def check_dependencies() -> bool:
 
     for tool in required_tools:
         # Try running via python -m first
-        returncode, _, _ = run_command([sys.executable, "-m", tool, "--version"], check=False)
+        returncode, _, _ = run_command([sys.executable, "-m", tool, "--version"])
         if returncode == 0:
             print_step(f"{tool} is installed", "success")
         else:
@@ -104,10 +105,10 @@ def check_dependencies() -> bool:
             missing_tools.append(tool)
 
     if missing_tools:
-        print(f"\n{Colors.FAIL}Missing tools: {', '.join(missing_tools)}{Colors.ENDC}")
-        print(
-            f"{Colors.WARNING}Install them with: pip install {' '.join(missing_tools)}{Colors.ENDC}\n"
-        )
+        tools_str = ", ".join(missing_tools)
+        print(f"\n{Colors.FAIL}Missing tools: {tools_str}{Colors.ENDC}")
+        install_cmd = f"pip install {' '.join(missing_tools)}"
+        print(f"{Colors.WARNING}Install them with: {install_cmd}{Colors.ENDC}\n")
         return False
 
     return True
@@ -123,19 +124,19 @@ def format_with_black(check_only: bool, verbose: bool) -> bool:
     cmd.append(".")  # Let black discover files based on pyproject.toml
 
     print_step("Running black formatter", "running")
-    returncode, stdout, stderr = run_command(cmd, check=False, verbose=verbose)
+    returncode, stdout, stderr = run_command(cmd, verbose=verbose)
 
     if returncode == 0:
         print_step("Black formatting passed", "success")
         return True
+
+    if check_only:
+        print_step("Black found formatting issues", "warning")
+        print(stdout)
     else:
-        if check_only:
-            print_step("Black found formatting issues", "warning")
-            print(stdout)
-        else:
-            print_step("Black formatting failed", "error")
-            print(stderr)
-        return False
+        print_step("Black formatting failed", "error")
+        print(stderr)
+    return False
 
 
 def sort_imports(check_only: bool, verbose: bool) -> bool:
@@ -148,19 +149,18 @@ def sort_imports(check_only: bool, verbose: bool) -> bool:
     cmd.append(".")  # Let isort discover files based on pyproject.toml
 
     print_step("Running isort", "running")
-    returncode, stdout, stderr = run_command(cmd, check=False, verbose=verbose)
+    returncode, stdout, _ = run_command(cmd, verbose=verbose)
 
     if returncode == 0:
         print_step("Import sorting passed", "success")
         return True
+
+    if check_only:
+        print_step("isort found unsorted imports", "warning")
+        print(stdout)
     else:
-        if check_only:
-            print_step("isort found unsorted imports", "warning")
-            print(stdout)
-        else:
-            print_step("Import sorting failed", "error")
-            print(stderr)
-        return False
+        print_step("Import sorting failed", "error")
+    return False
 
 
 def lint_with_flake8(verbose: bool) -> bool:
@@ -170,15 +170,15 @@ def lint_with_flake8(verbose: bool) -> bool:
     cmd = [sys.executable, "-m", "flake8"]  # Uses .flake8 config for discovery
 
     print_step("Running flake8", "running")
-    returncode, stdout, stderr = run_command(cmd, check=False, verbose=verbose)
+    returncode, stdout, _ = run_command(cmd, verbose=verbose)
 
     if returncode == 0:
         print_step("Flake8 passed", "success")
         return True
-    else:
-        print_step("Flake8 found issues", "warning")
-        print(stdout)
-        return False
+
+    print_step("Flake8 found issues", "warning")
+    print(stdout)
+    return False
 
 
 def lint_with_pylint(verbose: bool) -> bool:
@@ -186,8 +186,6 @@ def lint_with_pylint(verbose: bool) -> bool:
     print_header("Pylint Linting")
 
     # Find all Python files in the project root (not in tests or .venv)
-    import glob
-
     python_files = [
         f for f in glob.glob("*.py") if not f.startswith("setup") and not f.startswith(".")
     ]
@@ -199,23 +197,23 @@ def lint_with_pylint(verbose: bool) -> bool:
     cmd = [sys.executable, "-m", "pylint"] + python_files
 
     print_step("Running pylint", "running")
-    returncode, stdout, stderr = run_command(cmd, check=False, verbose=verbose)
+    returncode, stdout, _ = run_command(cmd, verbose=verbose)
 
     # Pylint returns non-zero for warnings, so we check the score
     if returncode == 0:
         print_step("Pylint passed", "success")
         return True
-    else:
-        # Parse pylint output to check if score is acceptable
-        if "rated at" in stdout:
-            print_step("Pylint completed with warnings", "warning")
-            print(stdout)
-            # Consider it a pass if pylint ran (even with warnings)
-            return True
-        else:
-            print_step("Pylint failed", "error")
-            print(stdout)
-            return False
+
+    # Parse pylint output to check if score is acceptable
+    if "rated at" in stdout:
+        print_step("Pylint completed with warnings", "warning")
+        print(stdout)
+        # Consider it a pass if pylint ran (even with warnings)
+        return True
+
+    print_step("Pylint failed", "error")
+    print(stdout)
+    return False
 
 
 def main() -> int:
@@ -245,8 +243,6 @@ def main() -> int:
 
     # Change to project root
     project_root = Path(__file__).parent.parent
-    import os
-
     os.chdir(project_root)
 
     # Check dependencies
@@ -283,16 +279,14 @@ def main() -> int:
     if all_passed:
         print(f"{Colors.OKGREEN}{Colors.BOLD}✓ All checks passed!{Colors.ENDC}\n")
         return 0
+
+    if args.check_only:
+        msg = "⚠ Issues found. Run without --check-only to auto-fix."
+        print(f"{Colors.WARNING}{Colors.BOLD}{msg}{Colors.ENDC}\n")
     else:
-        if args.check_only:
-            print(
-                f"{Colors.WARNING}{Colors.BOLD}⚠ Issues found. Run without --check-only to auto-fix.{Colors.ENDC}\n"
-            )
-        else:
-            print(
-                f"{Colors.FAIL}{Colors.BOLD}✗ Some issues could not be auto-fixed. Please review and fix manually.{Colors.ENDC}\n"
-            )
-        return 1
+        msg = "✗ Some issues could not be auto-fixed. Please review manually."
+        print(f"{Colors.FAIL}{Colors.BOLD}{msg}{Colors.ENDC}\n")
+    return 1
 
 
 if __name__ == "__main__":
